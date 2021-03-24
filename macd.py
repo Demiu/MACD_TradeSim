@@ -8,30 +8,32 @@ def ema_denominator(N: int, alpha: float) -> float:
 
 # returns the list of terms in the sum in EMA numerator
 # 0th sample is p0 in the formula
-def ema_numerator_array(samples: list[float], alpha: float) -> list[float]:
+def ema_numerator_terms(samples: list[float], alpha: float) -> list[float]:
     exponents = range(len(samples))
     return list(map(lambda p, e: p*((1-alpha)**e), samples, exponents))
 
 # returns a tuple of the EMA numerator and the list of terms used to create it
 # 0th sample is p0 in the formula
-def ema_numerator(samples: list[float], alpha: float) -> tuple(float, list[float]):
-    array = ema_numerator_array(samples, alpha)
+def ema_numerator(samples: list[float], alpha: float) -> tuple[float, list[float]]:
+    array = ema_numerator_terms(samples, alpha)
     value = sum(array)
     return (value,array)
 
 # returns a tuple of the EMA numerator and the list of terms used to create it
 # 0th sample is p0 in the formula
 # takes the array of terms used to calculate the previous numerator to speed up calculations
-def ema_numerator_next(sample: float, alpha: float, prev_array: list[float]) -> tuple(float, list[float]):
+def ema_numerator_next(sample: float, alpha: float, prev_array: list[float]) -> tuple[float, list[float]]:
     new_samples = [sample] + prev_array[:-1]
     return ema_numerator(new_samples, alpha)
     
 if __name__ == "__main__":
     left_ema_N = 12
+    left_ema_sample_count = left_ema_N + 1
     left_ema_alpha = ema_alpha(left_ema_N)
     left_ema_divisor = ema_denominator(left_ema_N, left_ema_alpha)
 
     right_ema_N = 26
+    right_ema_sample_count = right_ema_N + 1
     right_ema_alpha = ema_alpha(right_ema_N)
     right_ema_divisor = ema_denominator(right_ema_N, right_ema_alpha)
 
@@ -41,9 +43,17 @@ if __name__ == "__main__":
 
     # days in our data
     day_count = len(prices.index)
-    # -1 because for N=x we need x+1 days sampled
-    first_day = day_count - max(left_ema_N, right_ema_N) - 1 
+    first_day = day_count - max(left_ema_sample_count, right_ema_sample_count)
 
+    left_ema_samples = prices[first_day:(first_day+left_ema_sample_count)]
+    left_ema_numerator,left_ema_terms = ema_numerator(left_ema_samples, left_ema_alpha)
+    left_ema = left_ema_numerator / left_ema_divisor
+
+    right_ema_samples = prices[first_day:(first_day+right_ema_sample_count)]
+    right_ema_numerator,right_ema_terms = ema_numerator(right_ema_samples, right_ema_alpha)
+    right_ema = right_ema_numerator / right_ema_divisor
     
+    macd_list=[]
+    macd_list.append(left_ema - right_ema)
 
-    print(prices[first_day:])
+    print("")
