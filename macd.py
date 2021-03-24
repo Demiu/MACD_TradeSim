@@ -12,11 +12,20 @@ def ema_numerator_array(samples: list[float], alpha: float) -> list[float]:
     exponents = range(len(samples))
     return list(map(lambda p, e: p*((1-alpha)**e), samples, exponents))
 
-def ema_numerator_initial(samples: list[float], alpha: float) -> tuple(float, list[float]):
+# returns a tuple of the EMA numerator and the list of terms used to create it
+# 0th sample is p0 in the formula
+def ema_numerator(samples: list[float], alpha: float) -> tuple(float, list[float]):
     array = ema_numerator_array(samples, alpha)
     value = sum(array)
     return (value,array)
 
+# returns a tuple of the EMA numerator and the list of terms used to create it
+# 0th sample is p0 in the formula
+# takes the array of terms used to calculate the previous numerator to speed up calculations
+def ema_numerator_next(sample: float, alpha: float, prev_array: list[float]) -> tuple(float, list[float]):
+    new_samples = [sample] + prev_array[:-1]
+    return ema_numerator(new_samples, alpha)
+    
 if __name__ == "__main__":
     left_ema_N = 12
     left_ema_alpha = ema_alpha(left_ema_N)
