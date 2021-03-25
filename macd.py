@@ -1,3 +1,4 @@
+from typing import Final
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -30,52 +31,46 @@ def ema_numerator_next(sample: float, alpha: float, prev_array: list[float]) -> 
     terms = [sample] + past_samples
     value = sum(terms)
     return (value,terms)
+
+# samples: measurements, newest first, has to be longer than first sample by N+1
+# first_sample: the index of the oldest sample to calculate (10 means calculate 10 EMAs for samples 0..10)
+def ema_calculate(N: int, samples: list[float], first_sample: int) -> list[float]:
+    sample_count: Final[float] = N+1
+    alpha: Final[float] = ema_alpha(N)
+    divisor: Final[float] = ema_denominator(N, alpha)
+    # we can't sample data that would require measurement outside of provided range
+    assert len(samples) >= (sample_count + first_sample)
+    # sample range for the first (oldest) EMA term
+    first_ema_samples: Final[list[float]] = samples[first_sample:(first_sample+sample_count)]
+    numerator, terms = ema_numerator(first_ema_samples, alpha)
+    # create the return variable and add the first ema
+    ema_list = []
+    ema_list.append(numerator / divisor)
+    # iterate over the rest of indicies and calculate next EMAs ()
+    for sidx in reversed(range(first_sample)):
+        sample = samples[sidx]
+        numerator, terms = ema_numerator_next(sample,alpha,terms)
+        ema_list.append(numerator / divisor)
+    
+    return ema_list
     
 if __name__ == "__main__":
     left_ema_N = 12
-    left_ema_sample_count = left_ema_N + 1
-    left_ema_alpha = ema_alpha(left_ema_N)
-    left_ema_divisor = ema_denominator(left_ema_N, left_ema_alpha)
-
     right_ema_N = 26
-    right_ema_sample_count = right_ema_N + 1
-    right_ema_alpha = ema_alpha(right_ema_N)
-    right_ema_divisor = ema_denominator(right_ema_N, right_ema_alpha)
 
     # read the prices from file
     data = pd.read_csv("HistoricalPrices.csv", skipinitialspace=True)
     dates = data["Date"]
-    prices = data["Open"]
+    prices = list(data["Open"])
 
     # days in our data
-    day_count = len(prices.index)
-    # first possible to calculate, last by date
-    first_day = day_count - max(left_ema_sample_count, right_ema_sample_count)
+    day_count = len(prices)
+    # first possible to calculate (last by date)
+    first_day = day_count - max(left_ema_N + 1, right_ema_N + 1)
 
-    left_ema_samples = prices[first_day:(first_day+left_ema_sample_count)]
-    left_ema_numerator,left_ema_terms = ema_numerator(left_ema_samples, left_ema_alpha)
-    left_ema = left_ema_numerator / left_ema_divisor
-
-    right_ema_samples = prices[first_day:(first_day+right_ema_sample_count)]
-    right_ema_numerator,right_ema_terms = ema_numerator(right_ema_samples, right_ema_alpha)
-    right_ema = right_ema_numerator / right_ema_divisor
-    
-    t=max(left_ema_sample_count, right_ema_sample_count)
-
-    macd_list=[]
-    macd_list.append(left_ema - right_ema)
-
-    # iterate from the first_day - 1 to 0th (latest) day
-    for day in reversed(range(first_day)):
-        sample = prices[day]
-
-        left_ema_numerator,left_ema_terms = ema_numerator_next(sample,left_ema_alpha,left_ema_terms)
-        left_ema = left_ema_numerator / left_ema_divisor
-
-        right_ema_numerator,right_ema_terms = ema_numerator_next(sample,right_ema_alpha,right_ema_terms)
-        right_ema = right_ema_numerator / right_ema_divisor
-
-        macd_list.append(left_ema - right_ema)
+    left_emas = ema_calculate(left_ema_N, prices, first_day)
+    right_emas = ema_calculate(right_ema_N, prices, first_day)
+    macd_list = [(l - r) for (l,r) in zip(left_emas,right_emas)]
 
     fig = plt.figure()
     ax = plt.axes()
