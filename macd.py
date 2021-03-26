@@ -1,6 +1,10 @@
+import datetime
 from typing import Final
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+date_format: Final[str] = "%m/%d/%y"
 
 def ema_alpha(N: int) -> float:
     return 2 / (N + 1)
@@ -62,11 +66,18 @@ if __name__ == "__main__":
 
     # read the prices from file
     data = pd.read_csv("HistoricalPrices.csv", skipinitialspace=True)
-    dates = data["Date"]
+    dates = list(data["Date"])
     prices = list(data["Open"])
+
     # days in our data
     day_count: Final[int] = len(prices)
+    # first possible day to calculate macd (last by date)
     first_day = day_count - max(left_ema_N + 1, right_ema_N + 1)
+
+    # convert dates to datetime
+    dates = [datetime.datetime.strptime(d, date_format) for d in dates]
+    # cut off the dates for which we can't calculate date
+    dates = list(reversed(dates[:(first_day+1)]))
 
     # calculate the MACD
     left_emas = ema_calculate(left_ema_N, prices, first_day)
@@ -77,13 +88,14 @@ if __name__ == "__main__":
     first_day_signal = len(macd_list) - (signal_ema_N + 1)
     signal_emas = ema_calculate(signal_ema_N, list(reversed(macd_list)),first_day_signal)
 
-    # pad the signal line at the beginning to align it with the MACD
-    signal_emas = ([signal_emas[0]] * signal_ema_N) + signal_emas
-
-    fig = plt.figure()
-    ax = plt.axes()
-    ax.plot(macd_list)
-    ax.plot(signal_emas)
+    fig, ax = plt.subplots()
+    ax.plot_date(dates, macd_list, '-')
+    ax.plot_date(dates[signal_ema_N:], signal_emas, '-')
+    ax.xaxis.set_major_locator(mdates.YearLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax.xaxis.set_minor_locator(mdates.MonthLocator())
+    ax.set_xlim(dates[0], dates[-1])
+    fig.autofmt_xdate()
     fig.show()
 
     input()
