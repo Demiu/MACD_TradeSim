@@ -58,44 +58,64 @@ def ema_calculate(N: int, samples: list[float], first_sample: int) -> list[float
         ema_list.append(numerator / divisor)
     
     return ema_list
-    
-if __name__ == "__main__":
-    left_ema_N = 12
-    right_ema_N = 26
-    signal_ema_N = 9
+
+# samples: measurements for MACD, newest first
+# periods: the length of the EMA to calculate
+# returns: tuple of lists of computed MACD and signal, oldest first
+def macd_signal_gen(samples: list[float], macd_period_one: int, macd_period_two: int, signal_period: int) \
+    -> tuple[list[float], list[float]]:
+    # how many samples are in data
+    sample_count: Final[int] = len(samples)
+    # first possible sample to calculate macd (last by date)
+    oldest_sample = sample_count - max(macd_period_one + 1, macd_period_two + 1)
+
+    # calculate the MACD
+    left_emas = ema_calculate(macd_period_one, samples, oldest_sample)
+    right_emas = ema_calculate(macd_period_two, samples, oldest_sample)
+    macd = [(l - r) for (l,r) in zip(left_emas,right_emas)]
+
+    # calculate the signal line
+    first_day_signal = len(macd) - (signal_period + 1)
+    signal = ema_calculate(signal_period, list(reversed(macd)),first_day_signal)
+
+    return (macd, signal)
+
+def main():
+    period1 = 12
+    perdio2 = 26
+    period3 = 9
 
     # read the prices from file
     data = pd.read_csv("HistoricalPrices.csv", skipinitialspace=True)
     dates = list(data["Date"])
     prices = list(data["Open"])
 
-    # days in our data
-    day_count: Final[int] = len(prices)
-    # first possible day to calculate macd (last by date)
-    first_day = day_count - max(left_ema_N + 1, right_ema_N + 1)
+    # generate the MACD and signal
+    macd,signal = macd_signal_gen(prices, period1, perdio2, period3)
 
+    # how many days are in data
+    sample_count: Final[int] = len(prices)
+    # first possible day to calculate macd (last by date)
+    oldest_day = sample_count - max(period1 + 1, perdio2 + 1)
     # convert dates to datetime
     dates = [datetime.datetime.strptime(d, date_format) for d in dates]
-    # cut off the dates for which we can't calculate date
-    dates = list(reversed(dates[:(first_day+1)]))
+    # cut off the dates for which we can't calculate MACD, reverse them to be in right order
+    dates = dates[:(oldest_day+1)]
+    dates.reverse()
 
-    # calculate the MACD
-    left_emas = ema_calculate(left_ema_N, prices, first_day)
-    right_emas = ema_calculate(right_ema_N, prices, first_day)
-    macd_list = [(l - r) for (l,r) in zip(left_emas,right_emas)]
-
-    # calculate the signal line
-    first_day_signal = len(macd_list) - (signal_ema_N + 1)
-    signal_emas = ema_calculate(signal_ema_N, list(reversed(macd_list)),first_day_signal)
-
+    # display the plots
     fig, ax = plt.subplots()
-    ax.plot_date(dates, macd_list, '-')
-    ax.plot_date(dates[signal_ema_N:], signal_emas, '-')
+    ax.plot_date(dates, macd, '-')
+    ax.plot_date(dates[period3:], signal, '-')
     ax.xaxis.set_major_locator(mdates.YearLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax.xaxis.set_minor_locator(mdates.MonthLocator())
-    ax.set_xlim(dates[0], dates[-1])
+    ax.set_xlim(dates[0] - datetime.timedelta(days=5), dates[-1] + datetime.timedelta(days=5))
     fig.autofmt_xdate()
     fig.show()
 
     input()
+    
+if __name__ == "__main__":
+    main()
+    
