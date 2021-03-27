@@ -1,6 +1,6 @@
 # MACD trader
 
-A simple python script that calculates and displays [MACD](https://en.wikipedia.org/wiki/MACD) plus it's line, then simulates a series of trades using them.
+A simple python script that calculates and displays [MACD](https://en.wikipedia.org/wiki/MACD) plus it's signal line, then simulates a series of trades using them.
 
 ## Prerequisites
 * [Python 3.9+](https://www.python.org/)
