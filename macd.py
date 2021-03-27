@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 from typing import Final
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -80,6 +80,28 @@ def macd_signal_gen(samples: list[float], macd_period_one: int, macd_period_two:
 
     return (macd, signal)
 
+def draw_graphs(dates: list[dt.datetime], macd: list[float], signal: list[float]):
+    # dates that MACD covers
+    macd_dates = dates[(len(dates) - len(macd)):]
+    # dates that Signal covers
+    signal_dates = dates[(len(dates) - len(signal)):]
+    # earier of the two (always should be from MACD)
+    earliest_date = min(macd_dates[0], signal_dates[0])
+
+    fig, axs = plt.subplots(2,figsize=(6.4, 9))
+    # show MACD and Signal on both charts
+    for i in range(2):
+        axs[i].plot_date(macd_dates, macd, '-')
+        axs[i].plot_date(signal_dates, signal, '-')
+        axs[i].xaxis.set_major_locator(mdates.YearLocator())
+        axs[i].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        axs[i].xaxis.set_minor_locator(mdates.MonthLocator())
+        axs[i].set_xlim(earliest_date - dt.timedelta(days=5), dates[-1] + dt.timedelta(days=5))
+    
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.show()
+
 def main():
     period1 = 12
     perdio2 = 26
@@ -90,29 +112,16 @@ def main():
     dates = list(data["Date"])
     prices = list(data["Open"])
 
-    # generate the MACD and signal
+    # generate the MACD and Signal
     macd,signal = macd_signal_gen(prices, period1, perdio2, period3)
 
-    # how many days are in data
-    sample_count: Final[int] = len(prices)
-    # first possible day to calculate macd (last by date)
-    oldest_day = sample_count - max(period1 + 1, perdio2 + 1)
     # convert dates to datetime
-    dates = [datetime.datetime.strptime(d, date_format) for d in dates]
-    # cut off the dates for which we can't calculate MACD, reverse them to be in right order
-    dates = dates[:(oldest_day+1)]
+    dates = [dt.datetime.strptime(d, date_format) for d in dates]
+    # reverse the dates to match MACD/Signal order
     dates.reverse()
 
     # display the plots
-    fig, ax = plt.subplots()
-    ax.plot_date(dates, macd, '-')
-    ax.plot_date(dates[period3:], signal, '-')
-    ax.xaxis.set_major_locator(mdates.YearLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-    ax.xaxis.set_minor_locator(mdates.MonthLocator())
-    ax.set_xlim(dates[0] - datetime.timedelta(days=5), dates[-1] + datetime.timedelta(days=5))
-    fig.autofmt_xdate()
-    fig.show()
+    draw_graphs(dates, macd, signal)
 
     input()
     
