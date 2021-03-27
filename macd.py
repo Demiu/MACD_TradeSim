@@ -64,7 +64,7 @@ def ema_calculate(N: int, samples: list[float], first_sample: int) -> list[float
 # periods: the length of the EMA to calculate
 # returns: tuple of lists of computed MACD and signal, oldest first
 def macd_signal_gen(samples: list[float], macd_period_one: int, macd_period_two: int, signal_period: int) \
-    -> tuple[list[float], list[float]]:
+                    -> tuple[list[float], list[float]]:
     # how many samples are in data
     sample_count: Final[int] = len(samples)
     # first possible sample to calculate macd (last by date)
@@ -81,30 +81,53 @@ def macd_signal_gen(samples: list[float], macd_period_one: int, macd_period_two:
 
     return (macd, signal)
 
+# takes: current money, the multiplier of maximum money to spend (>=0,<=1), current held units, current price
+# returns: new money and unit amounts
+def buy_units(money: float, money_mul: float, units: int, price: float) -> tuple[float, int]:
+    assert money_mul >= 0 and money_mul <= 1
+    to_spend = money * money_mul
+    bought = floor(to_spend / price)
+    spent = bought * price
+
+    return (money - spent, units + bought)
+
+# takes: current money, current held units, the multiplier of units to sell (0<=m<=1), current price
+# returns: new money and unit amounts
+def sell_units(money: float, units: int, units_mul: float, price: float) -> tuple[float, int]:
+    assert units_mul >= 0 and units_mul <= 1
+    to_sell = floor(units * units_mul)
+    gained = to_sell * price
+
+    return (money + gained, units - to_sell) 
+
+
 # computes a single, latest, trading day
 # all parameters are in oldest first order
 # returns: a tuple of new amount of held units and money
-def trade_day(price: float, macd: list[float], signal: list[float], units: int, money: float) -> tuple[int, float]:
+def trade_day(price: float, macd: list[float], signal: list[float], 
+              units: int, money: float) -> tuple[int, float]:
     assert len(macd) >= 2 and len(signal) >= 2
-    signal_over_macd_today: Final[bool] = (signal[-1] - macd[-1]) > 0
-    signal_over_macd_yday: Final[bool] = (signal[-2] - macd[-2]) > 0
-    macd_positive = macd[-1] >= 0
-    # check for crossovers
-    if signal_over_macd_today and not signal_over_macd_yday:
-        # sell crossover
-        if macd_positive:
+    signal_over_macd_today: Final[bool] = signal[-1] > macd[-1]
+    signal_over_macd_yday: Final[bool] = signal[-2] > macd[-2]
+    macd_positive_today = macd[-1] >= 0
+    macd_increased = macd[-1] > macd[-2]
+    can_buy = (money / price) >= 1
+
+    if macd_positive_today:
+        if signal_over_macd_today and not signal_over_macd_yday and units > 0:
+            # sell crossover, if macd is in positive (overall rising trend) 
             # sell everything
-            money += units * price
-            units = 0
-    elif not signal_over_macd_today and signal_over_macd_yday:
-        # buy crossover
-        if not macd_positive or True:
+            money, units = sell_units(money, units, 1, price)
+        elif can_buy:
+            # we can buy at least 1 unit and we're in a raise
+            # if we can do so then we crossed from negatives into positives
             # buy as much as possible
-            bought: Final[int] = floor(money / price)
-            bought_for: Final[float] = bought * price
-            units += bought
-            money -= bought_for
-    
+            money, units = buy_units(money, 1, units, price)
+    elif can_buy:
+        if macd_increased and not signal_over_macd_today:
+            # macd increased and signal is under macd, so it will be raising
+            money, units = buy_units(money, 0.05, units, price)
+
     return (units, money)
 
 # all paramaters are in oldest first order
@@ -119,17 +142,16 @@ def trade_macd(prices: list[float], macd: list[float], signal: list[float]):
     money = 0.0
 
     # start from the 2nd day because the trade_day looks at two days back
-    for day in range(1, len(signal), 1):
+    for day in range(1, len(signal)):
         price = prices_relevant[day]
         macd_to_date = macd_relevant[:(day+1)]
         signal_to_date = signal[:(day+1)]
         units, money = trade_day(price, macd_to_date, signal_to_date, units, money)
-        print("new units: ", units, "\tmoney: ", money)
     
     # last day selloff
     money += units * prices[-1]
     units = 0
-    print("Final money: ", money)
+    print("Final money: ", money, ", worth ", money/prices[-1], " units total")
 
 def draw_graphs(prices: list[float], dates: list[dt.datetime], macd: list[float], signal: list[float]):
     # prices that MACD covers
