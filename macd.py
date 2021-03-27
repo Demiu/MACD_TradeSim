@@ -5,8 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-date_format: Final[str] = "%m/%d/%y"
-
 def ema_alpha(N: int) -> float:
     return 2 / (N + 1)
 
@@ -181,17 +179,13 @@ def draw_graphs(prices: list[float], dates: list[dt.datetime], macd: list[float]
     fig.show()
 
 def main():
-    period1 = 12
-    perdio2 = 26
-    period3 = 9
-
     # read the prices from file
-    data = pd.read_csv("HistoricalPrices.csv", skipinitialspace=True)
-    dates = list(data["Date"])
-    prices = list(data["Open"])
+    data = pd.read_csv(csv_file, skipinitialspace=True)
+    dates = list(data[dates_column_name])
+    prices = list(data[prices_column_name])
 
     # generate the MACD and Signal
-    macd,signal = macd_signal_gen(prices, period1, perdio2, period3)
+    macd,signal = macd_signal_gen(prices, period1, period2, period3)
 
     # reverse the prices order to match MACD/Signal, done now because macd_signal_gen expects newest first
     prices.reverse()
@@ -209,5 +203,14 @@ def main():
     input()
     
 if __name__ == "__main__":
+    # the program parameters
+    period1 = 12
+    period2 = 26
+    period3 = 9
+    csv_file = "HistoricalPrices.csv"
+    dates_column_name = "Date"
+    prices_column_name = "Open"
+    date_format: Final[str] = "%m/%d/%y"
+
     main()
     
