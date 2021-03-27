@@ -8,4 +8,4 @@ A simple python script that calculates and displays [MACD](https://en.wikipedia.
 * [matplotlib](https://matplotlib.org/) - to display the graphs
 
 ## License
-AGPLv3
+[AGPLv3](LICENSE.md)
