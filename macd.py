@@ -1,5 +1,6 @@
 import datetime as dt
 from typing import Final
+from numpy import floor
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -80,24 +81,79 @@ def macd_signal_gen(samples: list[float], macd_period_one: int, macd_period_two:
 
     return (macd, signal)
 
-def draw_graphs(dates: list[dt.datetime], macd: list[float], signal: list[float]):
+# computes a single, latest, trading day
+# all parameters are in oldest first order
+# returns: a tuple of new amount of held units and money
+def trade_day(price: float, macd: list[float], signal: list[float], units: int, money: float) -> tuple[int, float]:
+    assert len(macd) >= 2 and len(signal) >= 2
+    signal_over_macd_today: Final[bool] = (signal[-1] - macd[-1]) > 0
+    signal_over_macd_yday: Final[bool] = (signal[-2] - macd[-2]) > 0
+    macd_positive = macd[-1] >= 0
+    # check for crossovers
+    if signal_over_macd_today and not signal_over_macd_yday:
+        # sell crossover
+        if macd_positive:
+            # sell everything
+            money += units * price
+            units = 0
+    elif not signal_over_macd_today and signal_over_macd_yday:
+        # buy crossover
+        if not macd_positive or True:
+            # buy as much as possible
+            bought: Final[int] = floor(money / price)
+            bought_for: Final[float] = bought * price
+            units += bought
+            money -= bought_for
+    
+    return (units, money)
+
+# all paramaters are in oldest first order
+def trade_macd(prices: list[float], macd: list[float], signal: list[float]):
+    # the relevant prices (covered by Signal)
+    prices_relevant = prices[(len(prices) - len(signal)):]
+    # the relevant MACDs (covered by Signal)
+    macd_relevant = macd[(len(macd) - len(signal)):]
+
+    # the starting amount
+    units = 1000
+    money = 0.0
+
+    # start from the 2nd day because the trade_day looks at two days back
+    for day in range(1, len(signal), 1):
+        price = prices_relevant[day]
+        macd_to_date = macd_relevant[:(day+1)]
+        signal_to_date = signal[:(day+1)]
+        units, money = trade_day(price, macd_to_date, signal_to_date, units, money)
+        print("new units: ", units, "\tmoney: ", money)
+    
+    # last day selloff
+    money += units * prices[-1]
+    units = 0
+    print("Final money: ", money)
+
+def draw_graphs(prices: list[float], dates: list[dt.datetime], macd: list[float], signal: list[float]):
+    # prices that MACD covers
+    prices_relevant = prices[(len(prices) - len(macd)):]
     # dates that MACD covers
     macd_dates = dates[(len(dates) - len(macd)):]
     # dates that Signal covers
     signal_dates = dates[(len(dates) - len(signal)):]
     # earier of the two (always should be from MACD)
-    earliest_date = min(macd_dates[0], signal_dates[0])
+    earliest_date = macd_dates[0]
 
     fig, axs = plt.subplots(2,figsize=(6.4, 9))
-    # show MACD and Signal on both charts
+    # set the shared parameters between chars
     for i in range(2):
-        axs[i].plot_date(macd_dates, macd, '-')
-        axs[i].plot_date(signal_dates, signal, '-')
         axs[i].xaxis.set_major_locator(mdates.YearLocator())
         axs[i].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
         axs[i].xaxis.set_minor_locator(mdates.MonthLocator())
         axs[i].set_xlim(earliest_date - dt.timedelta(days=5), dates[-1] + dt.timedelta(days=5))
-    
+    # show the MACD and Signal on the first chart
+    axs[0].plot_date(macd_dates, macd, c="tab:blue", ls='-', marker='', zorder=10)
+    axs[0].plot_date(signal_dates, signal, c="tab:orange", ls='-', marker='', zorder=5)
+    # show the price on the second chart
+    axs[1].plot_date(macd_dates, prices_relevant, c="tab:gray", ls='-', marker='', zorder=0)
+
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.show()
@@ -115,13 +171,18 @@ def main():
     # generate the MACD and Signal
     macd,signal = macd_signal_gen(prices, period1, perdio2, period3)
 
+    # reverse the prices order to match MACD/Signal, done now because macd_signal_gen expects newest first
+    prices.reverse()
+
+    trade_macd(prices, macd, signal)
+
     # convert dates to datetime
     dates = [dt.datetime.strptime(d, date_format) for d in dates]
     # reverse the dates to match MACD/Signal order
     dates.reverse()
 
     # display the plots
-    draw_graphs(dates, macd, signal)
+    draw_graphs(prices, dates, macd, signal)
 
     input()
     
