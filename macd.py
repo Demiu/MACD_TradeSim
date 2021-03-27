@@ -1,6 +1,6 @@
 import datetime as dt
 from typing import Final
-from numpy import floor
+from math import floor
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
